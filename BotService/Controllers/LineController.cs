@@ -1,5 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using BotService.Model.Line;
+using BotService.Service.Line;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 
 namespace BotService.Controllers
@@ -8,6 +14,15 @@ namespace BotService.Controllers
     [ApiController]
     public class LineController : ControllerBase
     {
+        private readonly ILineService _lineService;
+        private readonly ILogger _logger;
+
+        public LineController(ILineService lineService, ILogger<LineController> logger)
+        {
+            _lineService = lineService;
+            _logger = logger;
+        }
+
         // GET api/line
         [HttpGet]
         public ActionResult<IEnumerable<string>> Get()
@@ -22,11 +37,13 @@ namespace BotService.Controllers
             return "value";
         }
 
-        // POST api/line
-        [HttpPost]
-        public async Task<IActionResult> Post([FromBody] object body)
+        // POST api/line/webhook
+        [HttpPost("webhook")]        
+        public async Task<IActionResult> Post([FromHeader] string header, [FromBody] LineWebhookEvent hookEvent)
         {
-            
+            //_logger.LogInformation(JsonConvert.SerializeObject(hookEvent));            
+            _lineService.HandleEventAsync(hookEvent);
+
             return Ok();
         }
 
