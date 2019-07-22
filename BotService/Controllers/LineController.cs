@@ -14,13 +14,13 @@ namespace BotService.Controllers
     [ApiController]
     public class LineController : ControllerBase
     {
-        private readonly ILineService _lineService;
         private readonly ILogger _logger;
+        private readonly ILineService _lineService;
 
         public LineController(ILineService lineService, ILogger<LineController> logger)
         {
-            _lineService = lineService;
             _logger = logger;
+            _lineService = lineService;
         }
 
         // GET api/line
@@ -43,6 +43,7 @@ namespace BotService.Controllers
         {
             //_logger.LogInformation(JsonConvert.SerializeObject(hookEvent));            
             _lineService.HandleEventAsync(hookEvent);
+            
 
             return Ok();
         }
