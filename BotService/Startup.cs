@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using BotService.Model.Line;
+using BotService.Service.API;
 using BotService.Service.Google;
 using BotService.Service.Line;
 using Microsoft.AspNetCore.Builder;
@@ -31,14 +32,15 @@ namespace BotService
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
             services.AddScoped<ILineService, LineService>();
             services.AddScoped<IGoogleService, GoogleService>();
-            services.AddHttpClient("Line", c =>
+            services.AddScoped<IAPIService, APIService>();
+            services.AddHttpClient("LineMessageAPI", c =>
             {
-                c.BaseAddress = new Uri("https://api.line.me");
+                c.BaseAddress = new Uri("https://api.line.me/v2/bot/message/");
                 c.DefaultRequestHeaders.Add("Authorization", "Bearer l9rA12B/CgX4MF49n9zjTPTeO8P3GRTlGz78lAp9Zls3CUSk9G+q9EAouJeYWuNIwubo/QZ/XfQsLS3+sAwOcskfbu3Z98SONoE+cSwOXLQRHyo5utY4IKwDm+FIxwWqfMmwmgNJOYY3rPgwpXgA+gdB04t89/1O/w1cDnyilFU=");
             });
             services.AddHttpClient("GoogleCustomSearchAPI", c =>
             {
-                c.BaseAddress = new Uri("https://www.googleapis.com/customsearch/v1");
+                c.BaseAddress = new Uri("https://www.googleapis.com/customsearch/v1/");
             });
 
         }

@@ -1,5 +1,6 @@
 ﻿
 using BotService.Model.Line;
+using BotService.Service.API;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -23,11 +24,13 @@ namespace BotService.Service.Line
     {
         private readonly ILogger _logger;
         private readonly IHttpClientFactory _clientFactory;
+        private readonly IAPIService _apiService;
 
-        public LineService(IHttpClientFactory clientFactory, ILogger<LineService> logger)
+        public LineService(IHttpClientFactory clientFactory, ILogger<LineService> logger, IAPIService apiService)
         {
             _logger = logger;
             _clientFactory = clientFactory;
+            _apiService = apiService;
         }
 
         public async Task HandleEventAsync(LineWebhookEvent hookEvent)
@@ -84,25 +87,12 @@ namespace BotService.Service.Line
 
         public async Task ReplyMessage(string replyToken, List<object> messages)
         {
-            var request = new HttpRequestMessage(HttpMethod.Post, "/v2/bot/message/reply");
-            request.Content = new StringContent(JsonConvert.SerializeObject(new
-            {
-                replyToken,
-                messages
-            }), Encoding.UTF8, "application/json");
+            //Line 回傳物件還沒建
+            var result = await _apiService.PostAsync<object>("reply", new { replyToken, messages }, "LineMessageAPI");
 
-            var client = _clientFactory.CreateClient("Line");
-            var response = await client.SendAsync(request);
-
-            if (response.IsSuccessStatusCode)
+            if (!result.IsSuccess)
             {
-                var result = await response.Content.ReadAsStringAsync();
-                _logger.LogInformation(result);
-            }
-            else
-            {
-                var result = await response.Content.ReadAsStringAsync();
-                _logger.LogInformation($"Error: {result}");
+                //傳送失敗後行為未實做 => 應該要push message
             }
         }
     }
