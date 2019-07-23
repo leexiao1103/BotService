@@ -13,6 +13,7 @@ namespace BotService.Service.API
     public interface IAPIService
     {
         Task<APIResult<T>> PostAsync<T>(string url, object postData, string clientName = "");
+        Task<APIResult<T>> GetAsync<T>(string url, string clientName = "");
     }
 
     public class APIService : IAPIService
@@ -29,7 +30,17 @@ namespace BotService.Service.API
         public async Task<APIResult<T>> GetAsync<T>(string url, string clientName = "")
         {
             var result = new APIResult<T>();
-            
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            var client = _clientFactory.CreateClient(clientName);
+            var response = await client.SendAsync(request);
+            var content = await response.Content.ReadAsStringAsync();
+
+            result.StatusCode = response.StatusCode;
+            result.IsSuccess = response.IsSuccessStatusCode;
+            result.Result = JsonConvert.DeserializeObject<T>(content);
+
+            //log機制還沒做，先隨便弄
+            _logger.LogInformation(content);            
 
             return result;
         }

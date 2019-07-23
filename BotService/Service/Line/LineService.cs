@@ -1,16 +1,13 @@
 ﻿
 using BotService.Model.Line;
 using BotService.Service.API;
+using BotService.Service.Google;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
-using System.Net.Http;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace BotService.Service.Line
@@ -23,14 +20,14 @@ namespace BotService.Service.Line
     public class LineService : ILineService
     {
         private readonly ILogger _logger;
-        private readonly IHttpClientFactory _clientFactory;
         private readonly IAPIService _apiService;
+        private readonly IGoogleService _googleAPIService;
 
-        public LineService(IHttpClientFactory clientFactory, ILogger<LineService> logger, IAPIService apiService)
+        public LineService(ILogger<LineService> logger, IAPIService apiService, IGoogleService googleAPIService)
         {
             _logger = logger;
-            _clientFactory = clientFactory;
             _apiService = apiService;
+            _googleAPIService = googleAPIService;
         }
 
         public async Task HandleEventAsync(LineWebhookEvent hookEvent)
@@ -62,24 +59,12 @@ namespace BotService.Service.Line
                 messages.Add(new { type = "text", text = $"吃{shop}啦{emojiEat}{emojiKiss}{emojiShineEye}{emojiLaugh}" });
 
 
-                var request = new HttpRequestMessage(HttpMethod.Get, $"?key=AIzaSyCNX2TgNgk5_v7uoGlJT5GNGfeqHPbz0DM&cx=010662344843333467486:6uuqmv5wzkk&q={shop}");
-                var client = _clientFactory.CreateClient("GoogleCustomSearchAPI");
-                var response = await client.SendAsync(request);
+                var googleSearchResult = await _googleAPIService.GoogleSearchKeyWord(shop);
 
-                if (response.IsSuccessStatusCode)
-                {
-                    var result = await response.Content.ReadAsStringAsync();
-                    var resultItems = ((JObject)JsonConvert.DeserializeObject(result))["items"];
-                    var link1 = resultItems[0]["link"].ToString();
-                    var link2 = resultItems[1]["link"].ToString();
-                    messages.Add(new { type = "text", text = link1 });
-                    messages.Add(new { type = "text", text = link2 });
-                }
-                else
-                {
-                    var result = await response.Content.ReadAsStringAsync();
-                    _logger.LogInformation($"Error: {result}");
-                }
+                var link1 = googleSearchResult["items"][0]["link"].ToString();
+                var link2 = googleSearchResult["items"][1]["link"].ToString();
+                messages.Add(new { type = "text", text = link1 });
+                messages.Add(new { type = "text", text = link2 });
 
                 await ReplyMessage(hookEvent.Events[0].ReplyToken, messages);
             }
