@@ -30,13 +30,21 @@ namespace BotService
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
+
+            //redis
+            //services.AddDistributedRedisCache(options =>
+            //{
+            //    options.InstanceName = Configuration.GetValue<string>("redis:name");
+            //    options.Configuration = Configuration.GetValue<string>("redis:host");
+            //});
+
             services.AddScoped<ILineService, LineService>();
             services.AddScoped<IGoogleService, GoogleService>();
             services.AddScoped<IAPIService, APIService>();
             services.AddHttpClient("LineMessageAPI", c =>
             {
                 c.BaseAddress = new Uri("https://api.line.me/v2/bot/message/");
-                c.DefaultRequestHeaders.Add("Authorization", "Bearer l9rA12B/CgX4MF49n9zjTPTeO8P3GRTlGz78lAp9Zls3CUSk9G+q9EAouJeYWuNIwubo/QZ/XfQsLS3+sAwOcskfbu3Z98SONoE+cSwOXLQRHyo5utY4IKwDm+FIxwWqfMmwmgNJOYY3rPgwpXgA+gdB04t89/1O/w1cDnyilFU=");
+                c.DefaultRequestHeaders.Add("Authorization", $"Bearer {Configuration.GetValue<string>("LINE:Channel_Access_Token")}");
             });
             services.AddHttpClient("GoogleCustomSearchAPI", c =>
             {

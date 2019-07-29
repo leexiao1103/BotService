@@ -1,5 +1,6 @@
 ﻿using BotService.Model.API;
 using BotService.Service.API;
+using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
@@ -17,17 +18,21 @@ namespace BotService.Service.Google
     public class GoogleService : IGoogleService
     {
         private readonly IAPIService _apiService;
+        private readonly IConfiguration _configuration;
 
-        public GoogleService(IAPIService apiService)
+        public GoogleService(IAPIService apiService, IConfiguration configuration)
         {
             _apiService = apiService;
+            _configuration = configuration;
         }
 
         public async Task<JObject> GoogleSearchKeyWord(string keyword)
         {
+            string appKey = _configuration.GetValue<string>("Google:APP_Key");
+            string engineId = _configuration.GetValue<string>("Google:Engine_Id");
             //Google回傳物件沒建
             //應該要從DB拿key
-            string url = $"?key=AIzaSyCNX2TgNgk5_v7uoGlJT5GNGfeqHPbz0DM&cx=010662344843333467486:6uuqmv5wzkk&q={keyword}";
+            string url = $"?key={appKey}&cx={engineId}&q={keyword}";
             var response = await _apiService.GetAsync<JObject>(url, "GoogleCustomSearchAPI");
             var resultItems = response.Result;
 
