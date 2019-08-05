@@ -33,3 +33,4 @@ packages/
 
 
 /BotService/appsettings.json
+/BotService/Configuration/linesettings.json
