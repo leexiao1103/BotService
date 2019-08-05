@@ -14,7 +14,7 @@ namespace BotService.Service.Line
 {
     public interface ILineService
     {
-        Task HandleEventAsync(LineWebhookEvent hookEvent);
+        Task HandleEventAsync(LineEvent lineEvent);
     }
 
     public class LineService : ILineService
@@ -22,26 +22,141 @@ namespace BotService.Service.Line
         private readonly ILogger _logger;
         private readonly IAPIService _apiService;
         private readonly IGoogleService _googleAPIService;
+        private readonly ILineDBService _lineDBService;
+        private readonly ILineEmoji _lineEmoji;
+        private string _replyToken;
+        private SourceType _sourceType;
+        private string _chatId;
+        private List<ChatSetting> _chatSetting;
 
-        public LineService(ILogger<LineService> logger, IAPIService apiService, IGoogleService googleAPIService)
+        public LineService(ILogger<LineService> logger, IAPIService apiService, IGoogleService googleAPIService, ILineDBService lineDBService, ILineEmoji lineEmoji)
         {
             _logger = logger;
             _apiService = apiService;
             _googleAPIService = googleAPIService;
+            _lineDBService = lineDBService;
+            _lineEmoji = lineEmoji;
         }
 
-        public async Task HandleEventAsync(LineWebhookEvent hookEvent)
+        public async Task HandleEventAsync(LineEvent lineEvent)
         {
-            var messageContent = hookEvent.Events[0].Message;
-            bool isReply = messageContent.Type.Equals("text") && messageContent.Text.Equals("來家拉麵吧");
+            _replyToken = lineEvent.ReplyToken;
+            SetChatData(lineEvent.Source);
 
-            if (isReply)
+            switch (lineEvent.Type)
             {
-                //之後要拉出去
-                var emojiEat = char.ConvertFromUtf32(0x100093);
-                var emojiKiss = char.ConvertFromUtf32(0x100096);
-                var emojiShineEye = char.ConvertFromUtf32(0x10007A);
-                var emojiLaugh = char.ConvertFromUtf32(0x10009D);
+                case EventType.Message:
+                    bool isSet = await SetChatSetting();
+                    if (isSet)
+                        await HandleMessage(lineEvent.Message);
+                    else
+                        await InsertChatData(true);
+                    break;
+
+                case EventType.Follow:
+                case EventType.Join:
+                    await InsertChatData();
+                    break;
+
+                case EventType.Unfollow:
+                case EventType.Leave:
+                    await _lineDBService.DeleteAsync(_chatId);
+                    break;
+                    //case EventType.Postback:
+                    //    break;
+                    //case EventType.Beacon:
+                    //    break;                
+            }
+        }
+
+
+
+
+
+
+
+        #region Private
+
+        private async Task ReplyMessage(List<object> messages)
+        {            
+            var result = await _apiService.PostAsync<object>("reply", new { replyToken = _replyToken, messages }, "LineMessageAPI");
+
+            if (!result.IsSuccess)
+            {
+                //傳送失敗後行為未實做 => 應該要push message
+            }
+        }
+
+        private void SetChatData(Source source)
+        {
+            _sourceType = source.Type;
+            switch (source.Type)
+            {
+                case SourceType.User:
+                    _chatId = source.UserId;
+                    break;
+                case SourceType.Group:
+                    _chatId = source.GroupId;
+                    break;
+                case SourceType.Room:
+                    _chatId = source.RoomId;
+                    break;
+            }
+        }
+
+        private async Task InsertChatData(bool isDontKnow = false)
+        {
+            bool isInsert = await _lineDBService.InsertIfNotFoundAsync(_chatId, new ChatSetting()
+            {
+                Type = _sourceType,
+                ChatId = _chatId
+            });
+
+            if (isInsert && isDontKnow)
+            {
+                await ReplyMessage(new List<object> {
+                    new { type = "text", text = $"{_lineEmoji.Shark}(好像不認識你...)" },
+                    new { type = "text", text = $"讓我想想..." },
+                    new { type = "text", text = $"喔喔！老朋友～ 原來4ni啊{_lineEmoji.ShineEye}" },
+                    new { type = "text", text = $"想知道怎麼玩我，快輸入 /指令 吧 " },
+                    new { type = "text", text = $"歡迎回來{_lineEmoji.Kiss}{_lineEmoji.Kiss}{_lineEmoji.Kiss}" }
+                });
+            }
+            else if (isInsert)
+            {
+                await ReplyMessage(new List<object>() {
+                    new { type = "text", text = $"Hey！新朋友{_lineEmoji.ShineEye}" },
+                    new { type = "text", text = $"輸入 /指令 就能知道怎麼玩我喔" },
+                    new { type = "text", text = $"盡情的玩我吧{_lineEmoji.Kiss}{_lineEmoji.Kiss}{_lineEmoji.Kiss}" }
+                });
+            }
+        }
+
+        private async Task<bool> SetChatSetting()
+        {
+            _chatSetting = await _lineDBService.GetAllAsync(_chatId);
+
+            return _chatSetting?.Any() ?? false;
+        }
+
+        private async Task HandleMessage(Message message)
+        {
+            switch (GetCommandType(message))
+            {
+                case CommandType.AddTalk:
+                    await HandleAddTalkMessage(message.Text);
+                    break;
+                default:
+                    await HandleNormalMessage(message.Text);
+                    break;
+            }
+        }
+
+        private async Task HandleNormalMessage(string message)
+        {
+            //先處理拉麵
+            if (message.Equals("來家拉麵吧"))
+            {
                 var noodleList = new List<string>() {
                     "鬼金棒", "壹之穴", "豚人", "麵屋輝", "麵屋緣", "半熟堂", "油組",
                     "Soba Shinee & 柑橘", "美濃屋", "勝王", "麵屋壹慶", "悠然", "鷹流",
@@ -56,7 +171,7 @@ namespace BotService.Service.Line
 
                 var messages = new List<object>();
                 var shop = noodleList.OrderBy(_ => Guid.NewGuid()).First();
-                messages.Add(new { type = "text", text = $"吃{shop}啦{emojiEat}{emojiKiss}{emojiShineEye}{emojiLaugh}" });
+                messages.Add(new { type = "text", text = $"吃{shop}啦{_lineEmoji.Eat}{_lineEmoji.Kiss}{_lineEmoji.ShineEye}{_lineEmoji.Laugh}" });
 
 
                 var googleSearchResult = await _googleAPIService.GoogleSearchKeyWord(shop);
@@ -66,19 +181,45 @@ namespace BotService.Service.Line
                 messages.Add(new { type = "text", text = link1 });
                 messages.Add(new { type = "text", text = link2 });
 
-                await ReplyMessage(hookEvent.Events[0].ReplyToken, messages);
+                await ReplyMessage(messages);
             }
-        }
-
-        public async Task ReplyMessage(string replyToken, List<object> messages)
-        {
-            //Line 回傳物件還沒建
-            var result = await _apiService.PostAsync<object>("reply", new { replyToken, messages }, "LineMessageAPI");
-
-            if (!result.IsSuccess)
+            else
             {
-                //傳送失敗後行為未實做 => 應該要push message
+                var talk = string.Empty;
+                _chatSetting.Find(c => c.ChatId == _chatId).Talk.TryGetValue(message, out talk);
+
+                if (!string.IsNullOrEmpty(talk))
+                    await ReplyMessage(new List<object> { new { type = "text", text = talk } });
             }
         }
+
+        private async Task HandleAddTalkMessage(string message)
+        {
+            var splitMessage = message.Split("|");
+            var collection = await _lineDBService.GetAsync(_chatId);
+
+            collection.Talk.Add(splitMessage[1], splitMessage[2]);
+            await _lineDBService.Update(_chatId, collection);
+            await ReplyMessage(new List<object> { new { type = "text", text = $"筆記中{_lineEmoji.Pencil}{_lineEmoji.Pencil}{_lineEmoji.Pencil}" } });
+        }
+
+        private CommandType GetCommandType(Message message)
+        {
+            var isMessage = message.Type == MessageType.Text;
+
+            if (isMessage)
+            {
+                var splitMesage = message.Text.Split("|");
+                switch (splitMesage[0])
+                {
+                    case "/學說話":
+                        return CommandType.AddTalk;
+                    default:
+                        return CommandType.Normal;
+                }
+            }
+            return CommandType.Normal;
+        }
+        #endregion
     }
 }

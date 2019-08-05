@@ -18,7 +18,14 @@ namespace BotService
         }
 
         public static IWebHostBuilder CreateWebHostBuilder(string[] args) =>
-            WebHost.CreateDefaultBuilder(args)
-                .UseStartup<Startup>();
+            WebHost
+            .CreateDefaultBuilder(args)
+            //新增設定
+            .ConfigureAppConfiguration((hostContext, config) =>
+            {
+                var env = hostContext.HostingEnvironment;
+                config.AddJsonFile(path: Path.Combine(env.ContentRootPath, "Configuration/linesettings.json"), optional: false, reloadOnChange: true);
+            })
+            .UseStartup<Startup>();
     }
 }

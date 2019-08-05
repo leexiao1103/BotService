@@ -1,19 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using BotService.Model.Line;
+﻿using BotService.Model.Line;
 using BotService.Service.API;
 using BotService.Service.Google;
 using BotService.Service.Line;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System;
 
 namespace BotService
 {
@@ -31,16 +26,14 @@ namespace BotService
         {
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_1);
 
-            //redis
-            //services.AddDistributedRedisCache(options =>
-            //{
-            //    options.InstanceName = Configuration.GetValue<string>("redis:name");
-            //    options.Configuration = Configuration.GetValue<string>("redis:host");
-            //});
-
+            //Service
             services.AddScoped<ILineService, LineService>();
             services.AddScoped<IGoogleService, GoogleService>();
             services.AddScoped<IAPIService, APIService>();
+            services.AddSingleton<ILineDBService, LineDBService>();
+            services.AddSingleton<ILineEmoji, LineEmoji>();
+
+            //HttpClient
             services.AddHttpClient("LineMessageAPI", c =>
             {
                 c.BaseAddress = new Uri("https://api.line.me/v2/bot/message/");

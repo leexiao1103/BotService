@@ -1,0 +1,7 @@
+{
+  "LineDatabaseSetting": {
+    "DatabaseName": "DATABASE_NAME",
+    "CollectionName": "COLLECTIOIN_NAME",
+    "ConnectionString": "CONNECTION_STRING"
+  }
+}
