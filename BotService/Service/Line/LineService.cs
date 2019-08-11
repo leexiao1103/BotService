@@ -1,20 +1,18 @@
-﻿
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using BotService.Model.Line;
 using BotService.Service.API;
 using BotService.Service.Google;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace BotService.Service.Line
 {
     public interface ILineService
     {
-        Task HandleEventAsync(LineEvent lineEvent);
+        void InitServiceData(LineEvent lineEvent);
+        Task HandleEventAsync();
     }
 
     public class LineService : ILineService
@@ -24,10 +22,13 @@ namespace BotService.Service.Line
         private readonly IGoogleService _googleAPIService;
         private readonly ILineDBService _lineDBService;
         private readonly ILineEmoji _lineEmoji;
+        private List<ChatSetting> _chatSetting;
         private string _replyToken;
+        private EventType _type;
         private SourceType _sourceType;
         private string _chatId;
-        private List<ChatSetting> _chatSetting;
+        private Message _message;
+
 
         public LineService(ILogger<LineService> logger, IAPIService apiService, IGoogleService googleAPIService, ILineDBService lineDBService, ILineEmoji lineEmoji)
         {
@@ -38,17 +39,29 @@ namespace BotService.Service.Line
             _lineEmoji = lineEmoji;
         }
 
-        public async Task HandleEventAsync(LineEvent lineEvent)
+        public void InitServiceData(LineEvent lineEvent)
         {
+            //Set reply token                       
             _replyToken = lineEvent.ReplyToken;
+
+            //Set type
+            _type = lineEvent.Type;
+
+            //Set source type and chat id(room id, group id, user id)
             SetChatData(lineEvent.Source);
 
-            switch (lineEvent.Type)
+            //Set message
+            _message = lineEvent.Message;
+        }
+
+        public async Task HandleEventAsync()
+        {
+            switch (_type)
             {
                 case EventType.Message:
                     bool isSet = await SetChatSetting();
                     if (isSet)
-                        await HandleMessage(lineEvent.Message);
+                        await HandleMessage();
                     else
                         await InsertChatData(true);
                     break;
@@ -77,8 +90,8 @@ namespace BotService.Service.Line
 
         #region Private
 
-        private async Task ReplyMessage(List<object> messages)
-        {            
+        private async Task ReplyMessage<T>(List<T> messages)
+        {
             var result = await _apiService.PostAsync<object>("reply", new { replyToken = _replyToken, messages }, "LineMessageAPI");
 
             if (!result.IsSuccess)
@@ -112,23 +125,30 @@ namespace BotService.Service.Line
                 ChatId = _chatId
             });
 
+
+
+
+
+
             if (isInsert && isDontKnow)
             {
-                await ReplyMessage(new List<object> {
-                    new { type = "text", text = $"{_lineEmoji.Shark}(好像不認識你...)" },
-                    new { type = "text", text = $"讓我想想..." },
-                    new { type = "text", text = $"喔喔！老朋友～ 原來4ni啊{_lineEmoji.ShineEye}" },
-                    new { type = "text", text = $"想知道怎麼玩我，快輸入 /指令 吧 " },
-                    new { type = "text", text = $"歡迎回來{_lineEmoji.Kiss}{_lineEmoji.Kiss}{_lineEmoji.Kiss}" }
-                });
+                var messages = new List<LineText>() {
+                    new LineText() { Text = $"{_lineEmoji.Shark}(好像不認識你...)" },
+                    new LineText() { Text = $"讓我想想..." },
+                    new LineText() { Text = $"喔喔！老朋友～ 原來4ni啊{_lineEmoji.ShineEye}" },
+                    new LineText() { Text = $"想知道怎麼玩我，快輸入 /指令 吧 " },
+                    new LineText() { Text = $"歡迎回來{_lineEmoji.Kiss}{_lineEmoji.Kiss}{_lineEmoji.Kiss}" }
+                };
+                await ReplyMessage(messages);
             }
             else if (isInsert)
             {
-                await ReplyMessage(new List<object>() {
-                    new { type = "text", text = $"Hey！新朋友{_lineEmoji.ShineEye}" },
-                    new { type = "text", text = $"輸入 /指令 就能知道怎麼玩我喔" },
-                    new { type = "text", text = $"盡情的玩我吧{_lineEmoji.Kiss}{_lineEmoji.Kiss}{_lineEmoji.Kiss}" }
-                });
+                var messages = new List<LineText>() {
+                    new LineText() { Text = $"Hey！新朋友{_lineEmoji.ShineEye}" },
+                    new LineText() { Text = $"輸入 /指令 就能知道怎麼玩我喔" },
+                    new LineText() { Text = $"盡情的玩我吧{_lineEmoji.Kiss}{_lineEmoji.Kiss}{_lineEmoji.Kiss}" },
+                };
+                await ReplyMessage(messages);
             }
         }
 
@@ -139,15 +159,15 @@ namespace BotService.Service.Line
             return _chatSetting?.Any() ?? false;
         }
 
-        private async Task HandleMessage(Message message)
+        private async Task HandleMessage()
         {
-            switch (GetCommandType(message))
+            switch (GetCommandType(_message))
             {
                 case CommandType.AddTalk:
-                    await HandleAddTalkMessage(message.Text);
+                    await HandleAddTalkMessage(_message.Text);
                     break;
                 default:
-                    await HandleNormalMessage(message.Text);
+                    await HandleNormalMessage(_message.Text);
                     break;
             }
         }
@@ -169,19 +189,41 @@ namespace BotService.Service.Line
                     "太陽番茄麵", "玩笑亭", "博多幸籠", "初", "一風堂"
                 };
 
-                var messages = new List<object>();
+                var messages = new List<LineText>();
+
+
                 var shop = noodleList.OrderBy(_ => Guid.NewGuid()).First();
-                messages.Add(new { type = "text", text = $"吃{shop}啦{_lineEmoji.Eat}{_lineEmoji.Kiss}{_lineEmoji.ShineEye}{_lineEmoji.Laugh}" });
+                messages.Add(new LineText { Text = $"吃{shop}啦{_lineEmoji.Eat}{_lineEmoji.Kiss}{_lineEmoji.ShineEye}{_lineEmoji.Laugh}" });
 
 
                 var googleSearchResult = await _googleAPIService.GoogleSearchKeyWord(shop);
 
                 var link1 = googleSearchResult["items"][0]["link"].ToString();
                 var link2 = googleSearchResult["items"][1]["link"].ToString();
-                messages.Add(new { type = "text", text = link1 });
-                messages.Add(new { type = "text", text = link2 });
+                messages.Add(new LineText { Text = link1 });
+                messages.Add(new LineText { Text = link2 });
 
                 await ReplyMessage(messages);
+            }
+            else if (message.Equals("qk"))
+            {
+                var lineQuickReply = new LineQuickReply();
+                var quickReply = new QuickReplyContent();
+                var items = new List<Item>();
+
+                items.Add(new Item() { Action = new ActionContent() { Text = "測試1", Label = "測試1" } });
+                items.Add(new Item() { Action = new ActionContent() { Text = "測試2", Label = "測試2" } });
+                items.Add(new Item() { Action = new ActionContent() { Text = "測試3", Label = "測試3" } });
+
+                quickReply.Items = items;
+
+
+                lineQuickReply.Text = "QuickReply測試";
+                lineQuickReply.QuickReply = quickReply;
+
+
+
+                await ReplyMessage(new List<LineQuickReply> { lineQuickReply });
             }
             else
             {
@@ -189,7 +231,7 @@ namespace BotService.Service.Line
                 _chatSetting.Find(c => c.ChatId == _chatId).Talk.TryGetValue(message, out talk);
 
                 if (!string.IsNullOrEmpty(talk))
-                    await ReplyMessage(new List<object> { new { type = "text", text = talk } });
+                    await ReplyMessage(new List<LineText> { new LineText { Text = talk } });
             }
         }
 
@@ -200,7 +242,7 @@ namespace BotService.Service.Line
 
             collection.Talk.Add(splitMessage[1], splitMessage[2]);
             await _lineDBService.Update(_chatId, collection);
-            await ReplyMessage(new List<object> { new { type = "text", text = $"筆記中{_lineEmoji.Pencil}{_lineEmoji.Pencil}{_lineEmoji.Pencil}" } });
+            await ReplyMessage(new List<LineText> { new LineText { Text = $"筆記中{_lineEmoji.Pencil}{_lineEmoji.Pencil}{_lineEmoji.Pencil}" } });
         }
 
         private CommandType GetCommandType(Message message)

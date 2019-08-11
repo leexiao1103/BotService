@@ -1,12 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using BotService.Model.API;
+using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using BotService.Model.API;
-using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
 
 namespace BotService.Service.API
 {
@@ -40,7 +39,7 @@ namespace BotService.Service.API
             result.Result = JsonConvert.DeserializeObject<T>(content);
 
             //log機制還沒做，先隨便弄
-            _logger.LogInformation(content);            
+            _logger.LogInformation(content);
 
             return result;
         }
@@ -52,7 +51,10 @@ namespace BotService.Service.API
                 url.Substring(1);
 
             var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Content = new StringContent(JsonConvert.SerializeObject(postData), Encoding.UTF8, "application/json");
+            request.Content = new StringContent(JsonConvert.SerializeObject(postData, new JsonSerializerSettings
+            {
+                ContractResolver = new CamelCasePropertyNamesContractResolver()
+            }), Encoding.UTF8, "application/json");
 
             var client = _clientFactory.CreateClient(clientName);
             var response = await client.SendAsync(request);
